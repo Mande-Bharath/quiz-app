@@ -16,6 +16,8 @@ IMPORTANT RULES:
 6. Ensure questions cover different topics/sections of the article
 7. Do NOT make up or hallucinate facts - only use information from the article
 8. Format output as valid JSON
+9. Do NOT use markdown code fences or backticks. Output must be raw JSON only (no ```json).
+10. Do not include any commentary before or after the JSON.
 
 Return ONLY a valid JSON object with this structure:
 {{
@@ -43,7 +45,7 @@ These should be:
 3. Related fields or disciplines
 4. Important historical periods or events
 
-Return ONLY a JSON object with this structure:
+Return ONLY a JSON object with this structure. Do NOT use markdown code fences or backticks; output must be raw JSON only:
 {{
   "related_topics": ["Topic 1", "Topic 2", "Topic 3", ...]
 }}"""),

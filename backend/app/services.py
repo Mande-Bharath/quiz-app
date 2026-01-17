@@ -137,37 +137,120 @@ class QuizGenerationService:
         
         Tries to extract JSON from various formats that LLM might return
         """
+        import re
+
+        text = response_text.strip()
+
+        # 1) Remove surrounding markdown fences/backticks if present
+        if text.startswith("```"):
+            m = re.match(r"^```[a-zA-Z0-9_-]*\n(.*)\n```$", text, re.DOTALL)
+            if m:
+                text = m.group(1).strip()
+            else:
+                text = text.strip('`').strip()
+
+        # 2) Fix escaped square brackets often returned by some models (e.g., \[ and \])
+        text_fixed = text.replace('\\[', '[').replace('\\]', ']')
+
+        # 3) Escape raw newlines within JSON string literals
+        def escape_newlines_in_strings(s: str) -> str:
+            out = []
+            in_str = False
+            esc = False
+            for ch in s:
+                if in_str:
+                    if esc:
+                        out.append(ch)
+                        esc = False
+                    else:
+                        if ch == '\\':
+                            out.append(ch)
+                            esc = True
+                        elif ch == '"':
+                            out.append(ch)
+                            in_str = False
+                        elif ch == '\r':
+                            # drop carriage return; handle when next is \n
+                            continue
+                        elif ch == '\n':
+                            out.append('\\n')
+                        else:
+                            out.append(ch)
+                else:
+                    if ch == '"':
+                        out.append(ch)
+                        in_str = True
+                    else:
+                        out.append(ch)
+            return ''.join(out)
+
+        text_fixed2 = escape_newlines_in_strings(text_fixed)
+
+        # 4) Try direct JSON parsing with increasingly fixed candidates
+        for candidate in (text_fixed2, text_fixed, text):
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+
+        # 5) Remove trailing commas globally and try again
+        no_trailing = re.sub(r',\s*([}\]])', r'\1', text_fixed2)
         try:
-            # Try direct JSON parsing
-            return json.loads(response_text)
+            return json.loads(no_trailing)
         except json.JSONDecodeError:
             pass
-        
-        # Try to extract JSON from markdown code blocks
-        if "```json" in response_text:
-            json_str = response_text.split("```json")[1].split("```")[0].strip()
-            try:
-                return json.loads(json_str)
-            except json.JSONDecodeError:
-                pass
-        
-        # Try to extract JSON from code blocks
-        if "```" in response_text:
-            json_str = response_text.split("```")[1].split("```")[0].strip()
-            try:
-                return json.loads(json_str)
-            except json.JSONDecodeError:
-                pass
-        
-        # Last resort: try to find JSON object in response
-        import re
-        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-        if json_match:
-            try:
-                return json.loads(json_match.group())
-            except json.JSONDecodeError:
-                pass
-        
+
+        # 6) Extract first top-level JSON object or array substring and parse
+        def extract_json_blob(s: str) -> str | None:
+            start_candidates = [i for i in [s.find('{'), s.find('[')] if i != -1]
+            if not start_candidates:
+                return None
+            start = min(start_candidates)
+            stack = []
+            i = start
+            while i < len(s):
+                ch = s[i]
+                if ch in '{[':
+                    stack.append(ch)
+                elif ch in '}]':
+                    if not stack:
+                        return None
+                    open_ch = stack.pop()
+                    if (open_ch == '{' and ch != '}') or (open_ch == '[' and ch != ']'):
+                        pass
+                    if not stack:
+                        return s[start:i+1]
+                elif ch == '"':
+                    # skip strings to avoid counting braces inside strings
+                    j = i + 1
+                    escaped = False
+                    while j < len(s):
+                        c2 = s[j]
+                        if escaped:
+                            escaped = False
+                        else:
+                            if c2 == '\\':
+                                escaped = True
+                            elif c2 == '"':
+                                break
+                        j += 1
+                    i = j
+                i += 1
+            return None
+
+        blob = extract_json_blob(no_trailing) or extract_json_blob(text_fixed)
+        if blob:
+            candidates = [
+                blob,
+                blob.replace('\\[', '[').replace('\\]', ']'),
+                re.sub(r',\s*([}\]])', r'\1', blob),
+            ]
+            for cand in candidates:
+                try:
+                    return json.loads(cand)
+                except json.JSONDecodeError:
+                    continue
+
         logger.error(f"Could not parse JSON from response. Length: {len(response_text)}")
         logger.error(f"Response preview (first 500 chars): {response_text[:500]}")
         return {}

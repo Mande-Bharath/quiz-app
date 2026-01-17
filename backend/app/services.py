@@ -22,7 +22,7 @@ class QuizGenerationService:
             model=model,
             google_api_key=settings.GEMINI_API_KEY,
             temperature=0.7,
-            max_tokens=2000
+            max_tokens=8192
         )
     
     def generate_quiz(self, title: str, content: str) -> Dict:

@@ -8,9 +8,9 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'https://quiz-app-dleh.onrender.com', // Render URL
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api')
+        secure: true, // Required for HTTPS
       }
     }
   }

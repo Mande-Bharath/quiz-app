@@ -4,13 +4,10 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173,
-    host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'https://quiz-app-dleh.onrender.com', // Render URL
+        target: 'http://localhost:8000',
         changeOrigin: true,
-        secure: true, // Required for HTTPS
       }
     }
   }

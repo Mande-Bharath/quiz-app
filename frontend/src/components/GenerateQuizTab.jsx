@@ -12,7 +12,7 @@ function GenerateQuizTab() {
 
   const handleGenerateQuiz = async (e) => {
     e.preventDefault();
-
+    
     if (!url.trim()) {
       setError('Please enter a Wikipedia URL');
       return;
@@ -23,25 +23,22 @@ function GenerateQuizTab() {
     setQuiz(null);
 
     try {
-      const response = await fetch(
-        `${config.API_BASE_URL}/api/generate-quiz`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ url }),
-        }
-      );
+      const response = await fetch(`${config.API_BASE_URL}/generate-quiz`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+      });
 
       if (!response.ok) {
-        const text = await response.text(); // 👈 SAFE
-        throw new Error(text || 'Failed to generate quiz');
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to generate quiz');
       }
 
       const data = await response.json();
       setQuiz(data);
-      setCached(Boolean(data.cached));
+      setCached(data.cached || false);
     } catch (err) {
       setError(err.message || 'Error generating quiz. Please try again.');
     } finally {
@@ -68,11 +65,7 @@ function GenerateQuizTab() {
         </form>
 
         {error && <div className="error-message">❌ {error}</div>}
-        {cached && (
-          <div className="info-message">
-            💾 This quiz was cached from a previous request
-          </div>
-        )}
+        {cached && <div className="info-message">💾 This quiz was cached from a previous request</div>}
       </div>
 
       {quiz && (
@@ -88,6 +81,15 @@ function GenerateQuizTab() {
       {!quiz && !loading && !error && (
         <div className="placeholder">
           <p>📝 Enter a Wikipedia URL above to generate a quiz</p>
+          <p className="examples">
+            Examples:
+            <br />
+            • https://en.wikipedia.org/wiki/Alan_Turing
+            <br />
+            • https://en.wikipedia.org/wiki/Machine_Learning
+            <br />
+            • https://en.wikipedia.org/wiki/Albert_Einstein
+          </p>
         </div>
       )}
     </div>
@@ -95,4 +97,5 @@ function GenerateQuizTab() {
 }
 
 export default GenerateQuizTab;
+
 
